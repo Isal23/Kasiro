@@ -3686,6 +3686,97 @@ nav.side-nav button[data-nav].active .nav-loss-badge {
   gap: 6px;
 }
 
+
+/* Varian Rasa (Flavor Variants) Styling */
+.flavor-section-box {
+  border-top: 1.5px dashed var(--border);
+  padding-top: 16px;
+  margin-top: 10px;
+  margin-bottom: 14px;
+}
+.flavor-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.flavor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fdf2f8;
+  border: 1.5px solid #fbcfe8;
+  color: #be185d;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.flavor-chip .flavor-chip-stock {
+  font-size: 11px;
+  background: #ffffff;
+  color: #9d174d;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid #f9a8d4;
+}
+.flavor-chip button {
+  background: transparent;
+  color: #db2777;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 0 2px;
+  line-height: 1;
+}
+.flavor-chip button:hover {
+  color: #9d174d;
+}
+.flavor-card-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+  background: #fdf2f8;
+  border: 1px solid #fbcfe8;
+  padding: 8px 10px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+.flavor-card-row input {
+  margin: 0 !important;
+  padding: 7px 9px !important;
+  font-size: 13px !important;
+  background: #ffffff !important;
+}
+@media (max-width: 480px) {
+  .flavor-card-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.flavor-select {
+  width: 100%;
+  max-width: 230px;
+  margin: 4px 0 4px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  background: #fdf2f8;
+  border: 1.5px solid #f9a8d4;
+  color: #9d174d;
+  font-weight: 700;
+}
+.flavor-badge-tag {
+  display: inline-block;
+  background: #fdf2f8;
+  color: #be185d;
+  border: 1px solid #fbcfe8;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
 </style>
 </head>
 <body>
@@ -3994,6 +4085,7 @@ nav.side-nav button[data-nav].active .nav-loss-badge {
 <div class="total"><span>Laba per Barang</span><b id="qProfit">Rp0</b></div>
 <div class="total"><span>Margin Laba</span><b id="qMargin">0%</b></div>
 </div>
+<label>Varian Rasa (Opsional, pisahkan dengan koma)</label><input id="qFlavors" placeholder="Contoh: Stroberi, Coklat, Vanila">
 <label>Stok</label><input id="qStock" type="number" min="0" value="1">
 <div class="row">
 <button class="btn green" id="quickSaveButton" onclick="saveQuickProduct()">Simpan & Masukkan ke Keranjang</button>
@@ -4064,6 +4156,16 @@ nav.side-nav button[data-nav].active .nav-loss-badge {
   <div id="variantRows"></div>
   <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
     <button type="button" class="btn" onclick="addVariantRow()">+ Tambah Varian</button>
+  </div>
+</div>
+
+<div class="flavor-section-box">
+  <label>🍓 Varian Rasa Produk (Opsional)</label>
+  <div class="unit-note">Contoh: <b>Stroberi, Coklat, Vanila, Matcha</b>. Satu produk bisa punya banyak pilihan rasa saat transaksi kasir &amp; belanja agen (bisa diatur stok per rasa maupun harga tambahan jika ada).</div>
+  <div id="flavorRows"></div>
+  <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button type="button" class="btn" style="background:#db2777" onclick="addFlavorRow()">+ Tambah Varian Rasa</button>
+    <button type="button" class="btn gray" style="padding:9px 12px;font-size:12px" onclick="quickAddPresetFlavors()">⚡ Isi Contoh (Stroberi, Coklat, Vanila)</button>
   </div>
 </div>
 
@@ -5736,7 +5838,12 @@ function normalizeProducts(arr){
           return {...v,factor:f,price:Number(v.price)||0,cost:vCost};
         })
       : [{name:baseUnit,factor:1,price:Number(p.price)||0,cost:baseCost}];
-    return {...p,baseUnit,cost:baseCost,variants};
+    const flavors=Array.isArray(p.flavors)?p.flavors.filter(f=>f&&String(f.name||'').trim()).map(f=>({
+      name:String(f.name||'').trim(),
+      stock:f.stock!==undefined&&f.stock!==null&&f.stock!==''?Math.max(0,Number(f.stock)||0):null,
+      extraPrice:Number(f.extraPrice)||0
+    })):[];
+    return {...p,baseUnit,cost:baseCost,variants,flavors};
   });
 }
 function getVariantUnitCost(product,variant,factor=1){
@@ -7552,6 +7659,112 @@ document.addEventListener('keydown', function(e) {
     hwScanLastTime = now;
   }
 });
+
+// =========================================================================
+// MANAJEMEN VARIAN RASA PRODUK (STROBERI, COKLAT, DLL)
+// =========================================================================
+function addFlavorRow(name='', stock='', extraPrice=''){
+  const container = $('flavorRows');
+  if(!container) return;
+  const row = document.createElement('div');
+  row.className = 'flavor-card-row';
+  row.innerHTML = `
+    <div>
+      <label style="font-size:10.5px;color:#9d174d;margin-bottom:2px">Nama Rasa *</label>
+      <input class="fl-name" type="text" placeholder="Contoh: Stroberi" value="${esc(name)}">
+    </div>
+    <div>
+      <label style="font-size:10.5px;color:#9d174d;margin-bottom:2px">Stok Rasa (Ops)</label>
+      <input class="fl-stock" type="number" min="0" placeholder="Ikut induk" value="${stock!==null&&stock!==undefined&&stock!==''?stock:''}" oninput="syncTotalStockFromFlavors()">
+    </div>
+    <div>
+      <label style="font-size:10.5px;color:#9d174d;margin-bottom:2px">+ Harga (Ops)</label>
+      <input class="fl-extra money-input" type="text" inputmode="decimal" placeholder="0" value="${formatThousands(extraPrice)}">
+    </div>
+    <div style="display:flex;align-items:flex-end;height:100%">
+      <button type="button" class="btn red" style="padding:7px 10px;font-size:12px" onclick="this.closest('.flavor-card-row').remove();syncTotalStockFromFlavors()" title="Hapus Rasa">✕</button>
+    </div>
+  `;
+  container.appendChild(row);
+}
+
+function quickAddPresetFlavors(){
+  const existing = [...document.querySelectorAll('#flavorRows .fl-name')].map(i=>i.value.trim().toLowerCase());
+  ['Stroberi', 'Coklat', 'Vanila'].forEach(fl => {
+    if(!existing.includes(fl.toLowerCase())) addFlavorRow(fl, '', '');
+  });
+}
+
+function syncTotalStockFromFlavors(){
+  const rows = [...document.querySelectorAll('#flavorRows .flavor-card-row')];
+  if(!rows.length) return;
+  let hasExplicitStock = false;
+  let sum = 0;
+  rows.forEach(r => {
+    const raw = (r.querySelector('.fl-stock')?.value || '').trim();
+    if(raw !== ''){
+      hasExplicitStock = true;
+      sum += Math.max(0, Number(raw) || 0);
+    }
+  });
+  if(hasExplicitStock && $('pstock')){
+    $('pstock').value = sum;
+  }
+}
+
+function setFlavorRows(p){
+  const container = $('flavorRows');
+  if(!container) return;
+  container.innerHTML = '';
+  const fls = Array.isArray(p?.flavors) ? p.flavors : [];
+  fls.forEach(f => {
+    addFlavorRow(f.name || '', (f.stock !== null && f.stock !== undefined) ? f.stock : '', f.extraPrice || '');
+  });
+}
+
+function getFlavorRows(){
+  const rows = [...document.querySelectorAll('#flavorRows .flavor-card-row')];
+  const validRows = rows.filter(r => (r.querySelector('.fl-name')?.value || '').trim() !== '');
+  const list = validRows.map(r => {
+    const name = (r.querySelector('.fl-name')?.value || '').trim();
+    const rawStock = (r.querySelector('.fl-stock')?.value || '').trim();
+    const stock = rawStock === '' ? null : Math.max(0, Math.floor(Number(rawStock) || 0));
+    const extraPrice = parseMoney(r.querySelector('.fl-extra')?.value) || 0;
+    return { name, stock, extraPrice };
+  });
+  const lowerNames = list.map(x => x.name.toLowerCase());
+  if(new Set(lowerNames).size !== lowerNames.length){
+    throw Error('Nama varian rasa tidak boleh duplikat!');
+  }
+  return list;
+}
+
+function getProductFlavors(p){
+  return Array.isArray(p?.flavors) ? p.flavors.filter(f => f && String(f.name||'').trim()) : [];
+}
+
+function getEffectiveUnitPrice(p, v, fIdx = 0){
+  const baseVPrice = Number(v?.price) || 0;
+  const fls = getProductFlavors(p);
+  if(!fls.length) return baseVPrice;
+  const fl = fls[Math.max(0, Math.min(fls.length - 1, Number(fIdx) || 0))];
+  const extra = (Number(fl?.extraPrice) || 0) * (Math.max(1, Number(v?.factor) || 1));
+  return baseVPrice + extra;
+}
+
+function getFlavorAvailableBaseStock(p, fIdx = 0){
+  const fls = getProductFlavors(p);
+  const usedAll = cart.filter(x => x.id === p.id).reduce((a, x) => a + x.qty * (x.factor || 1), 0);
+  const totalAvail = Math.max(0, (Number(p.stock) || 0) - usedAll);
+  if(!fls.length) return totalAvail;
+  const fl = fls[Math.max(0, Math.min(fls.length - 1, Number(fIdx) || 0))];
+  if(fl && fl.stock !== null && fl.stock !== undefined){
+    const usedThisFlavor = cart.filter(x => x.id === p.id && Number(x.fIndex || 0) === Number(fIdx)).reduce((a, x) => a + x.qty * (x.factor || 1), 0);
+    return Math.min(totalAvail, Math.max(0, Number(fl.stock) - usedThisFlavor));
+  }
+  return totalAvail;
+}
+
 function saveProduct(){
 if(!canEditProducts())return alert('Akses tambah/edit produk dibatasi oleh Owner.');
 let id=Number($('pid').value);
@@ -7572,20 +7785,26 @@ try{
 const extraVariants=getVariantRows(baseUnit);
 variants=[{name:baseUnit,factor:1,price:price,cost:cost},...extraVariants];
 }catch(e){return alert(e.message)}
+let flavors=[];
+try{
+flavors=getFlavorRows();
+}catch(e){return alert(e.message)}
 if(id){
 let p=products.find(x=>x.id===id);
 if(!p)return alert('Produk tidak ditemukan');
 let reserved=cart.filter(x=>x.id===id).reduce((a,x)=>a+x.qty*(x.factor||1),0);
 if(stock<reserved)return alert('Stok tidak boleh lebih kecil dari jumlah produk yang sedang ada di keranjang ('+reserved+' '+baseUnit+').');
-Object.assign(p,{name,barcode,category,cost,price,stock,baseUnit,variants});
+Object.assign(p,{name,barcode,category,cost,price,stock,baseUnit,variants,flavors});
 cart=cart.map(item=>{
 if(item.id!==id)return item;
 let variant=variants[item.vIndex]||variants[0];
 let unitCost=getVariantUnitCost({cost},variant,variant.factor);
-return {...item,name,barcode,category,cost,variantCost:unitCost,price:variant.price,unit:variant.name,factor:variant.factor};
+let fl=flavors.length?(flavors[item.fIndex]||flavors[0]):null;
+let effPrice=getEffectiveUnitPrice(p,variant,item.fIndex||0);
+return {...item,name,barcode,category,cost,variantCost:unitCost,price:effPrice,unit:variant.name,factor:variant.factor,flavor:fl?fl.name:''};
 });
 }else{
-products.push({id:Date.now(),name,barcode,category,cost,price,stock,baseUnit,variants});
+products.push({id:Date.now(),name,barcode,category,cost,price,stock,baseUnit,variants,flavors});
 }
 const returnOrigin = window.returnOriginAfterSave || (window.returnToKasirAfterSave ? 'kasir' : '');
 window.returnOriginAfterSave = '';
@@ -7628,7 +7847,7 @@ renderUnitOptions('PCS');
 $('pcat').value='';$('pbaseUnit').value='PCS';
 $('productFormHeading').textContent='📦 Input Barang Baru';
 if($('deleteEditingProductBtn'))$('deleteEditingProductBtn').style.display='none';
-setVariantRows({baseUnit:'PCS',price:''});calculateProductProfit();
+setVariantRows({baseUnit:'PCS',price:''});setFlavorRows({flavors:[]});calculateProductProfit();
 }
 function editProduct(id){
 if(!canEditProducts())return alert('Akses edit produk dibatasi oleh Owner.');
@@ -7638,7 +7857,7 @@ renderUnitOptions(p.baseUnit||'PCS');
 $('pid').value=p.id;$('pname').value=p.name;$('pbarcode').value=p.barcode||'';
 $('pcat').value=p.category||'';if($('pcost'))$('pcost').dataset.manualBase='1';setExactBaseCost(p.cost,true);$('pprice').value=formatThousands(p.price);
 $('pstock').value=p.stock;$('pbaseUnit').value=(p.baseUnit||'PCS').toUpperCase();
-setVariantRows(p);calculateProductProfit();
+setVariantRows(p);setFlavorRows(p);calculateProductProfit();
 $('productFormHeading').textContent='✏️ Edit Produk';
 if($('deleteEditingProductBtn'))$('deleteEditingProductBtn').style.display=canEditProducts()?'inline-flex':'none';
 $('produk')._splitTabs?.setTab('input');
@@ -7696,6 +7915,7 @@ $('productTable').innerHTML=list.map(p=>`
 <div class="product-manage-info">
 <span class="product-manage-name">${esc(p.name)}</span>
 <small>${esc(p.category)} · ${(p.variants||[]).map(v=>esc(v.name)).join(', ')}</small>
+${(p.flavors&&p.flavors.length)?`<div style="margin:4px 0 2px;display:flex;flex-wrap:wrap;gap:4px">${p.flavors.map(fl=>`<span class="flavor-badge-tag">🍓 ${esc(fl.name)}${(fl.stock!==null&&fl.stock!==undefined)?` (${fl.stock})`:''}</span>`).join('')}</div>`:''}
 <small>${p.barcode?'Barcode: '+esc(p.barcode):'Tanpa barcode'}</small>
 ${isFeatureEnabled('stok')?`<span class="product-manage-stock">Stok: ${p.stock} ${esc(p.baseUnit||'PCS')}</span>`:''}
 <small>${hideProfit?`Harga Jual: ${money(p.price)}`:`Modal: ${money(p.cost)} · Jual: ${money(p.price)} · Laba: ${money(p.price-p.cost)}`}</small>
@@ -7710,26 +7930,38 @@ ${isFeatureEnabled('stok')?`<span class="product-manage-stock">Stok: ${p.stock} 
 </div>
 </div>`).join('')||'<div class="empty">Belum ada barang</div>';
 }
+function selectFlavor(id,index){
+window.selectedFlavors=window.selectedFlavors||{};window.selectedFlavors[id]=Number(index);renderProducts();
+}
 function renderProducts(){
+window.selectedFlavors=window.selectedFlavors||{};
 let q=$('search').value.toLowerCase();
-let list=sortedProducts().filter(p=>(p.name+' '+(p.barcode||'')+' '+p.category).toLowerCase().includes(q));
+let list=sortedProducts().filter(p=>{
+  const flText=(p.flavors||[]).map(f=>f.name).join(' ');
+  return (p.name+' '+(p.barcode||'')+' '+p.category+' '+flText).toLowerCase().includes(q);
+});
 const hideProfit=shouldHideProfit()||!isFeatureEnabled('profitInfo');
 $('productList').innerHTML=list.map(p=>{
 let vs=p.variants||[{name:p.baseUnit||'PCS',factor:1,price:p.price}];
 let idx=Math.max(0,Math.min(vs.length-1,Number(window.selectedUnits?.[p.id]||0)));
-let v=vs[idx],unitCost=getVariantUnitCost(p,v,v.factor),profit=Number(v.price||0)-unitCost;
-let used=cart.filter(x=>x.id===p.id).reduce((a,x)=>a+x.qty*(x.factor||1),0);
+let fls=getProductFlavors(p);
+let fIdx=fls.length?Math.max(0,Math.min(fls.length-1,Number(window.selectedFlavors?.[p.id]||0))):0;
+let curFl=fls.length?fls[fIdx]:null;
+let v=vs[idx];
+let effPrice=getEffectiveUnitPrice(p,v,fIdx);
+let unitCost=getVariantUnitCost(p,v,v.factor),profit=effPrice-unitCost;
 const stokActive=isFeatureEnabled('stok');
-let available=stokActive?(p.stock-used):999999;
-let qty=cart.filter(x=>x.id===p.id&&x.vIndex===idx).reduce((a,x)=>a+x.qty,0);
+let available=stokActive?getFlavorAvailableBaseStock(p,fIdx):999999;
+let qty=cart.filter(x=>x.id===p.id&&x.vIndex===idx&&Number(x.fIndex||0)===fIdx).reduce((a,x)=>a+x.qty,0);
 let totalLineProfit = profit * qty;
 let totalLineCost = unitCost * qty;
-let marginPct = Number(v.price||0) > 0 ? (profit / Number(v.price||0) * 100) : (unitCost > 0 ? -100 : 0);
+let marginPct = effPrice > 0 ? (profit / effPrice * 100) : (unitCost > 0 ? -100 : 0);
 return `<div class="product-pick-row" data-product-id="${p.id}">
 <div class="product-pick-info">
-<h4>${esc(p.name)}</h4>
+<h4>${esc(p.name)}${curFl?` <span class="flavor-badge-tag">🍓 ${esc(curFl.name)}</span>`:''}</h4>
+${fls.length>0?`<select class="flavor-select" onchange="selectFlavor(${p.id},this.value)" aria-label="Pilih varian rasa">${fls.map((fl,fi)=>`<option value="${fi}" ${fi===fIdx?'selected':''}>🍓 Rasa: ${esc(fl.name)}${Number(fl.extraPrice)>0?' (+'+money(fl.extraPrice)+')':''}</option>`).join('')}</select>`:''}
 ${vs.length>1?`<select class="unit-select" onchange="selectUnit(${p.id},this.value)">${vs.map((u,i)=>`<option value="${i}" ${i===idx?'selected':''}>${esc(u.name)} · ${u.factor} ${esc(p.baseUnit||'PCS')}</option>`).join('')}</select>`:''}
-<strong>${money(v.price)} / ${esc(v.name)}</strong>
+<strong>${money(effPrice)} / ${esc(v.name)}</strong>
 ${stokActive?`<p>Tersedia: ${Math.floor(Math.max(0,available)/v.factor)} ${esc(v.name)}</p>`:''}
 ${(!hideProfit && qty>0)?`<div class="cashier-profit">
   <div>Laba (${qty} ${esc(v.name)}): <b style="color:${totalLineProfit>=0?'#047857':'#dc2626'}">${money(totalLineProfit)}</b> · Modal (${qty} ${esc(v.name)}): <b>${money(totalLineCost)}</b></div>
@@ -7737,9 +7969,9 @@ ${(!hideProfit && qty>0)?`<div class="cashier-profit">
 </div>`:''}
 </div>
 <div class="product-pick-actions">
-<button onclick="changeQty(${p.id},-1,${idx})" ${qty<=0?'disabled':''} aria-label="Kurangi jumlah">−</button>
+<button onclick="changeQty(${p.id},-1,${idx},${fIdx})" ${qty<=0?'disabled':''} aria-label="Kurangi jumlah">−</button>
 <span class="qty-number">${qty}</span>
-<button onclick="addCart(${p.id},${idx})" ${(stokActive&&available<v.factor)?'disabled':''} aria-label="Tambah ke keranjang">+</button>
+<button onclick="addCart(${p.id},${idx},${fIdx})" ${(stokActive&&available<v.factor)?'disabled':''} aria-label="Tambah ke keranjang">+</button>
 </div>
 </div>`;
 }).join('')||'<div class="empty">Produk tidak ditemukan</div>';
@@ -7748,7 +7980,7 @@ function selectUnit(id,index){
 window.selectedUnits=window.selectedUnits||{};window.selectedUnits[id]=Number(index);renderProducts();
 }
 function resetQuickProduct(){
-$('qPid').value='';$('qName').value='';$('qBarcode').value='';
+$('qPid').value='';$('qName').value='';$('qBarcode').value='';if($('qFlavors'))$('qFlavors').value='';
 renderCategoryOptions();$('qCategory').value='';$('qCost').value='';$('qPrice').value='';
 $('qStock').value=1;$('quickFormTitle').textContent='📦 Input Produk Langsung';
 $('quickSaveButton').textContent='Simpan & Masukkan ke Keranjang';
@@ -7793,34 +8025,45 @@ return {...item,name:p.name,category:p.category,cost:p.cost,price:variant.price,
 save();$('quickProductForm').style.display='none';resetQuickProduct();refresh();updateCart();
 alert('Produk berhasil diperbarui dari halaman kasir!');
 }else{
-let p={id:Date.now(),name,barcode,category,cost,price,stock,baseUnit:'PCS',variants:[{name:'PCS',factor:1,price}]};
+let rawFlavors=($('qFlavors')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+let flavors=[...new Set(rawFlavors)].map(fn=>({name:fn,stock:null,extraPrice:0}));
+let p={id:Date.now(),name,barcode,category,cost,price,stock,baseUnit:'PCS',variants:[{name:'PCS',factor:1,price,cost}],flavors};
 products.push(p);
-if(stock>0)cart.push({...p,qty:1,vIndex:0,unit:'PCS',factor:1,lineKey:p.id+'_0'});
+let firstFl=flavors.length?flavors[0].name:'';
+if(stock>0)cart.push({...p,qty:1,vIndex:0,fIndex:0,flavor:firstFl,unit:'PCS',factor:1,lineKey:p.id+'_0_0'});
 save();resetQuickProduct();$('quickProductForm').style.display='none';refresh();updateCart();
 alert(stock>0?'Produk disimpan dan otomatis masuk keranjang!':'Produk disimpan. Stok kosong.');
 }
 }
-function addCart(id,vIndex=0){
+function addCart(id,vIndex=0,fIndex=null){
 let p=products.find(x=>x.id===id);if(!p)return;
 let vs=p.variants||[{name:p.baseUnit||'PCS',factor:1,price:p.price}],v=vs[vIndex];if(!v)return;
-let item=cart.find(x=>x.id===id&&x.vIndex===vIndex);
-let used=cart.filter(x=>x.id===id).reduce((a,x)=>a+x.qty*(x.factor||1),0);
-if(isFeatureEnabled('stok')&&used+v.factor>p.stock)return alert('Stok tidak mencukupi!');
+let fls=getProductFlavors(p);
+let resolvedFIdx=fls.length?Math.max(0,Math.min(fls.length-1,Number(fIndex!==null?fIndex:(window.selectedFlavors?.[id]||0)))):0;
+let curFl=fls.length?fls[resolvedFIdx]:null;
+let item=cart.find(x=>x.id===id&&x.vIndex===vIndex&&Number(x.fIndex||0)===resolvedFIdx);
+if(isFeatureEnabled('stok')){
+  let availBase=getFlavorAvailableBaseStock(p,resolvedFIdx);
+  if(v.factor>availBase)return alert('Stok '+(curFl?'rasa '+curFl.name+' ':'')+'tidak mencukupi!');
+}
+let effPrice=getEffectiveUnitPrice(p,v,resolvedFIdx);
 if(item)item.qty++;
-else cart.push({...p,qty:1,vIndex,unit:v.name,factor:v.factor,variantCost:getVariantUnitCost(p,v,v.factor),price:v.price,lineKey:id+'_'+vIndex});
+else cart.push({...p,qty:1,vIndex,fIndex:resolvedFIdx,flavor:curFl?curFl.name:'',unit:v.name,factor:v.factor,variantCost:getVariantUnitCost(p,v,v.factor),price:effPrice,lineKey:id+'_'+vIndex+'_'+resolvedFIdx});
 updateCart();renderProducts();
 }
-function changeQty(id,amount,vIndex=0){
-let item=cart.find(x=>x.id===id&&x.vIndex===vIndex),p=products.find(x=>x.id===id);
+function changeQty(id,amount,vIndex=0,fIndex=0){
+let item=cart.find(x=>x.id===id&&x.vIndex===vIndex&&Number(x.fIndex||0)===Number(fIndex||0)),p=products.find(x=>x.id===id);
 if(!item||!p)return;
 let next=item.qty+amount;
-if(next<=0){removeCart(id,vIndex);return}
-let used=cart.filter(x=>x.id===id).reduce((a,x)=>a+x.qty*(x.factor||1),0);
-if(isFeatureEnabled('stok')&&used+amount*item.factor>p.stock)return alert('Jumlah melebihi stok yang tersedia!');
+if(next<=0){removeCart(id,vIndex,fIndex);return}
+if(isFeatureEnabled('stok')&&amount>0){
+  let availBase=getFlavorAvailableBaseStock(p,fIndex);
+  if(amount*item.factor>availBase)return alert('Jumlah melebihi stok'+(item.flavor?' rasa '+item.flavor:'')+' yang tersedia!');
+}
 item.qty=next;updateCart();renderProducts();
 }
-function removeCart(id,vIndex){
-cart=cart.filter(x=>!(x.id===id&&(vIndex===undefined||x.vIndex===vIndex)));
+function removeCart(id,vIndex,fIndex){
+cart=cart.filter(x=>!(x.id===id&&(vIndex===undefined||x.vIndex===vIndex)&&(fIndex===undefined||Number(x.fIndex||0)===Number(fIndex||0))));
 updateCart();renderProducts();
 }
 function clearCart(){
@@ -7844,17 +8087,17 @@ let labaPerUnit=Number(p.price||0)-itemModalPerUnit;
 let totalLaba=labaPerUnit*p.qty;
 return `<div class="cartitem">
 <div class="cart-item-info">
-<b>${esc(p.name)}</b>
+<b>${esc(p.name)}${p.flavor?` <span class="flavor-badge-tag">🍓 ${esc(p.flavor)}</span>`:''}</b>
 <small>${p.qty} ${esc(p.unit||p.baseUnit||'PCS')} × ${money(p.price)} / ${esc(p.unit||'PCS')}</small>
 ${hideProfit?'':`<div class="cart-line-profit">Laba ${p.qty} ${esc(p.unit||'PCS')}: <b>${money(totalLaba)}</b></div>`}
 </div>
 <div class="cart-actions">
 <div class="qty-control">
-<button onclick="changeQty(${p.id},-1,${p.vIndex||0})">−</button>
+<button onclick="changeQty(${p.id},-1,${p.vIndex||0},${p.fIndex||0})">−</button>
 <span class="qty-number">${p.qty}</span>
-<button onclick="changeQty(${p.id},1,${p.vIndex||0})">+</button>
+<button onclick="changeQty(${p.id},1,${p.vIndex||0},${p.fIndex||0})">+</button>
 </div>
-<button class="btn red cart-delete" onclick="removeCart(${p.id},${p.vIndex||0})" aria-label="Hapus produk">×</button>
+<button class="btn red cart-delete" onclick="removeCart(${p.id},${p.vIndex||0},${p.fIndex||0})" aria-label="Hapus produk">×</button>
 </div>
 </div>`;
 }).join('')||'<div class="empty">Keranjang kosong</div>';
@@ -7911,7 +8154,19 @@ let t={
   method,
   profit:grossProfit-disc
 };
-if(isFeatureEnabled('stok')){cart.forEach(x=>{const prod=products.find(p=>p.id===x.id);if(prod)prod.stock=Math.max(0,prod.stock-x.qty*(x.factor||1));});}
+if(isFeatureEnabled('stok')){cart.forEach(x=>{
+  const prod=products.find(p=>p.id===x.id);
+  if(prod){
+    const deduct=x.qty*(x.factor||1);
+    prod.stock=Math.max(0,prod.stock-deduct);
+    if(Array.isArray(prod.flavors)&&prod.flavors.length){
+      const flObj=prod.flavors[Number(x.fIndex||0)]||prod.flavors.find(f=>f.name===x.flavor);
+      if(flObj&&flObj.stock!==null&&flObj.stock!==undefined){
+        flObj.stock=Math.max(0,Number(flObj.stock)-deduct);
+      }
+    }
+  }
+});}
 transactions.unshift(t);save();cart=[];$('paid').value='';$('discount').value=0;$('tax').value=0;
 updateCart();refresh();printReceipt(t);alert('Transaksi berhasil disimpan!');
 }
@@ -7945,8 +8200,9 @@ function buildReceiptInnerHTML(t){
   const receiptCode = formatReceiptCode(t);
   const itemsHTML = (t.items || []).map(i => {
     const unitLabel = String(i.unit || i.baseUnit || 'pcs').toLowerCase();
+    const flLabel = i.flavor ? ` (${i.flavor})` : '';
     return `<div class="r-item">
-      <div class="r-item-name">${esc(i.name)}</div>
+      <div class="r-item-name">${esc(i.name)}${esc(flLabel)}</div>
       <div class="r-item-sub">
         <span>${i.qty} ${esc(unitLabel)} x ${formatReceiptNum(i.price)}</span>
         <span>${formatReceiptNum(i.qty * i.price)}</span>
@@ -8000,7 +8256,7 @@ lines.push({hr: true});
 
 (t.items || []).forEach(i => {
   const unitLabel = String(i.unit || i.baseUnit || 'pcs').toLowerCase();
-  lines.push({text: i.name, bold: true, size: 15.5 * ui, color: '#000000', gapAfter: 4 * ui});
+  lines.push({text: i.name + (i.flavor ? ` (${i.flavor})` : ''), bold: true, size: 15.5 * ui, color: '#000000', gapAfter: 4 * ui});
   lines.push({
     left: `${i.qty} ${unitLabel} x ${formatReceiptNum(i.price)}`,
     leftIndent: 8 * ui,
@@ -8687,7 +8943,7 @@ let t=transactions.find(x=>x.id===id);if(!t)return alert('Transaksi tidak ditemu
 let itemCards=(t.items||[]).map((p,i)=>`
   <div class="detail-item-card">
     <div class="detail-item-main">
-      <div class="detail-item-title">${i+1}. ${esc(p.name)}</div>
+      <div class="detail-item-title">${i+1}. ${esc(p.name)}${p.flavor?` <span class="flavor-badge-tag">🍓 ${esc(p.flavor)}</span>`:""}</div>
       <div class="detail-item-sub">${p.qty} ${esc(p.unit||p.baseUnit||'PCS')} × ${money(p.price)}</div>
     </div>
     <div class="detail-item-subtotal">${money(p.qty*p.price)}</div>
@@ -8792,7 +9048,7 @@ function renderHistory(){
 let q=($('historySearch').value||'').toLowerCase();
 let arr=transactions.filter(t=>(String(t.id)+' '+String(t.cashier||'')+' '+String(t.method||'')).toLowerCase().includes(q)||(t.items||[]).some(p=>String(p.name).toLowerCase().includes(q)));
 $('historyTable').innerHTML=arr.map(t=>{
-  let itemSummary=(t.items||[]).map(i=>`${esc(i.name)} (${i.qty} ${esc(i.unit||i.baseUnit||'PCS')})`).join(', ');
+  let itemSummary=(t.items||[]).map(i=>`${esc(i.name)}${i.flavor?' ['+esc(i.flavor)+']':''} (${i.qty} ${esc(i.unit||i.baseUnit||'PCS')})`).join(', ');
   return `<div class="history-card">
     <div class="history-card-top">
       <div>
@@ -8815,27 +9071,39 @@ $('historyTable').innerHTML=arr.map(t=>{
   </div>`;
 }).join('')||'<div class="empty">Belum ada transaksi</div>';
 }
+function selectPurchaseFlavor(id,index){
+window.purchaseSelectedFlavors=window.purchaseSelectedFlavors||{};window.purchaseSelectedFlavors[id]=Number(index);renderPurchaseUI();
+}
 function renderPurchaseUI(){
+window.purchaseSelectedFlavors=window.purchaseSelectedFlavors||{};
 renderSupplierOptions();
 let q=($('purchaseSearch')?.value||'').toLowerCase();
-let list=sortedProducts().filter(p=>(p.name+' '+(p.barcode||'')+' '+p.category).toLowerCase().includes(q));
+let list=sortedProducts().filter(p=>{
+  const flText=(p.flavors||[]).map(f=>f.name).join(' ');
+  return (p.name+' '+(p.barcode||'')+' '+p.category+' '+flText).toLowerCase().includes(q);
+});
 $('purchaseProductList').innerHTML=list.map(p=>{
 let vs=p.variants||[{name:p.baseUnit||'PCS',factor:1,price:p.price}];
 let idx=Math.max(0,Math.min(vs.length-1,Number(window.purchaseSelectedUnits?.[p.id]||0)));
+let fls=getProductFlavors(p);
+let fIdx=fls.length?Math.max(0,Math.min(fls.length-1,Number(window.purchaseSelectedFlavors?.[p.id]||0))):0;
+let curFl=fls.length?fls[fIdx]:null;
 let v=vs[idx];
-let qty=purchaseCart.filter(x=>x.id===p.id&&x.vIndex===idx).reduce((a,x)=>a+x.qty,0);
+let qty=purchaseCart.filter(x=>x.id===p.id&&x.vIndex===idx&&Number(x.fIndex||0)===fIdx).reduce((a,x)=>a+x.qty,0);
+let flStockInfo=(curFl&&curFl.stock!==null&&curFl.stock!==undefined)?` · Stok ${curFl.name}: ${curFl.stock}`:'';
 return `<div class="product-pick-row" data-product-id="${p.id}">
 <div class="product-pick-info">
-<h4>${esc(p.name)}</h4>
-<p>${esc(p.category)}${isFeatureEnabled('stok')?` · Stok saat ini: ${p.stock} ${esc(p.baseUnit||'PCS')}`:''}</p>
+<h4>${esc(p.name)}${curFl?` <span class="flavor-badge-tag">🍓 ${esc(curFl.name)}</span>`:''}</h4>
+<p>${esc(p.category)}${isFeatureEnabled('stok')?` · Total stok: ${p.stock} ${esc(p.baseUnit||'PCS')}${esc(flStockInfo)}`:''}</p>
+${fls.length>0?`<select class="flavor-select" onchange="selectPurchaseFlavor(${p.id},this.value)" aria-label="Pilih varian rasa">${fls.map((fl,fi)=>`<option value="${fi}" ${fi===fIdx?'selected':''}>🍓 Rasa: ${esc(fl.name)}</option>`).join('')}</select>`:''}
 ${vs.length>1?`<select class="unit-select" onchange="selectPurchaseUnit(${p.id},this.value)">${vs.map((u,i)=>`<option value="${i}" ${i===idx?'selected':''}>${esc(u.name)} · ${u.factor} ${esc(p.baseUnit||'PCS')}</option>`).join('')}</select>`:`<p>Satuan: ${esc(v.name)}</p>`}
 <strong>${money(getVariantUnitCost(p,v,v.factor))} / ${esc(v.name)}</strong>
 <p>Harga modal pembelian per ${esc(v.name)}</p>
 </div>
 <div class="product-pick-actions">
-<button onclick="changePurchaseQty(${p.id},-1,${idx})" ${qty<=0?'disabled':''} aria-label="Kurangi jumlah">−</button>
+<button onclick="changePurchaseQty(${p.id},-1,${idx},${fIdx})" ${qty<=0?'disabled':''} aria-label="Kurangi jumlah">−</button>
 <span class="qty-number">${qty}</span>
-<button onclick="changePurchaseQty(${p.id},1,${idx})" aria-label="Tambah ke belanja">+</button>
+<button onclick="changePurchaseQty(${p.id},1,${idx},${fIdx})" aria-label="Tambah ke belanja">+</button>
 </div>
 </div>`;
 }).join('')||'<div class="empty">Produk tidak ditemukan</div>';
@@ -8846,19 +9114,19 @@ $('purchaseSubtotal').textContent=money(total);
 $('purchaseTotal').textContent=money(total);
 $('purchaseCart').innerHTML=purchaseCart.map((x,i)=>`
 <div class="cartitem">
-<div class="cart-item-info"><b>${esc(x.name)}</b><small>${x.qty} ${esc(x.unit||'PCS')} × ${money(x.cost)} / ${esc(x.unit||'PCS')}</small></div>
+<div class="cart-item-info"><b>${esc(x.name)}${x.flavor?` <span class="flavor-badge-tag">🍓 ${esc(x.flavor)}</span>`:''}</b><small>${x.qty} ${esc(x.unit||'PCS')} × ${money(x.cost)} / ${esc(x.unit||'PCS')}</small></div>
 <div class="cart-actions">
 <div class="qty-control">
-<button onclick="changePurchaseQty(${x.id},-1,${x.vIndex||0})" aria-label="Kurangi jumlah">−</button>
+<button onclick="changePurchaseQty(${x.id},-1,${x.vIndex||0},${x.fIndex||0})" aria-label="Kurangi jumlah">−</button>
 <span class="qty-number">${x.qty}</span>
-<button onclick="changePurchaseQty(${x.id},1,${x.vIndex||0})" aria-label="Tambah jumlah">+</button>
+<button onclick="changePurchaseQty(${x.id},1,${x.vIndex||0},${x.fIndex||0})" aria-label="Tambah jumlah">+</button>
 </div>
 <button class="btn red cart-delete" onclick="removePurchaseItem(${i})" aria-label="Hapus produk">×</button>
 </div>
 <b class="cart-line-total">${money(x.qty*x.cost)}</b>
 </div>`).join('')||'<div class="empty">Keranjang belanja kosong</div>';
 $('purchaseHistory').innerHTML=purchases.map(x=>{
-  let itemSummary=(x.items||[]).map(i=>`${esc(i.name)} (${i.qty} ${esc(i.unit||'PCS')})`).join(', ');
+  let itemSummary=(x.items||[]).map(i=>`${esc(i.name)}${i.flavor?' ['+esc(i.flavor)+']':''} (${i.qty} ${esc(i.unit||'PCS')})`).join(', ');
   return `<div class="history-card">
     <div class="history-card-top">
       <div>
@@ -8883,12 +9151,15 @@ updateSplitTabCounts();
 function selectPurchaseUnit(id,index){
 window.purchaseSelectedUnits=window.purchaseSelectedUnits||{};window.purchaseSelectedUnits[id]=Number(index);renderPurchaseUI();
 }
-function changePurchaseQty(id,amount,vIndex=0){
+function changePurchaseQty(id,amount,vIndex=0,fIndex=null){
 let p=products.find(x=>x.id===id);if(!p)return;
 let vs=p.variants||[{name:p.baseUnit||'PCS',factor:1,price:p.price}],v=vs[vIndex];if(!v)return;
-let item=purchaseCart.find(x=>x.id===id&&x.vIndex===vIndex);
-if(!item&&amount>0)purchaseCart.push({id:p.id,name:p.name,qty:1,cost:getVariantUnitCost(p,v,v.factor),unit:v.name,factor:Number(v.factor)||1,vIndex});
-else if(item){item.qty+=amount;if(item.qty<=0)purchaseCart=purchaseCart.filter(x=>!(x.id===id&&x.vIndex===vIndex))}
+let fls=getProductFlavors(p);
+let resolvedFIdx=fls.length?Math.max(0,Math.min(fls.length-1,Number(fIndex!==null?fIndex:(window.purchaseSelectedFlavors?.[id]||0)))):0;
+let curFl=fls.length?fls[resolvedFIdx]:null;
+let item=purchaseCart.find(x=>x.id===id&&x.vIndex===vIndex&&Number(x.fIndex||0)===resolvedFIdx);
+if(!item&&amount>0)purchaseCart.push({id:p.id,name:p.name,qty:1,cost:getVariantUnitCost(p,v,v.factor),unit:v.name,factor:Number(v.factor)||1,vIndex,fIndex:resolvedFIdx,flavor:curFl?curFl.name:''});
+else if(item){item.qty+=amount;if(item.qty<=0)purchaseCart=purchaseCart.filter(x=>!(x.id===id&&x.vIndex===vIndex&&Number(x.fIndex||0)===resolvedFIdx))}
 renderPurchaseUI();
 }
 function removePurchaseItem(i){purchaseCart.splice(i,1);renderPurchaseUI()}
@@ -8918,6 +9189,12 @@ if(p){
   const purchaseUnitCost=Number(x.cost)||0;
   const newBaseCost=purchaseUnitCost/f;
   p.stock+=x.qty*f;
+  if(Array.isArray(p.flavors)&&p.flavors.length){
+    const flObj=p.flavors[Number(x.fIndex||0)]||p.flavors.find(fl=>fl.name===x.flavor);
+    if(flObj&&flObj.stock!==null&&flObj.stock!==undefined){
+      flObj.stock=(Number(flObj.stock)||0)+(x.qty*f);
+    }
+  }
   p.cost=newBaseCost;
   if(Array.isArray(p.variants)){
     p.variants=p.variants.map(v=>{
@@ -8938,7 +9215,7 @@ let t=purchases.find(x=>x.id===id);if(!t)return alert('Riwayat belanja tidak dit
 let itemCards=(t.items||[]).map((x,i)=>`
   <div class="detail-item-card">
     <div class="detail-item-main">
-      <div class="detail-item-title">${i+1}. ${esc(x.name)}</div>
+      <div class="detail-item-title">${i+1}. ${esc(x.name)}${x.flavor?` <span class="flavor-badge-tag">🍓 ${esc(x.flavor)}</span>`:""}</div>
       <div class="detail-item-sub">${x.qty} ${esc(x.unit||'PCS')} × ${money(x.cost)}</div>
     </div>
     <div class="detail-item-subtotal">${money(x.qty*x.cost)}</div>
@@ -8995,7 +9272,8 @@ const headerLines = [
 
 const itemLines = (t.items || []).map((x, idx) => {
   const unit = String(x.unit || x.baseUnit || 'PCS').toUpperCase();
-  return `${idx + 1}. *${x.name}*
+  const flavorText = x.flavor ? ` (Rasa: ${x.flavor})` : '';
+  return `${idx + 1}. *${x.name}${flavorText}*
    ↳ ${x.qty} ${unit}`;
 });
 
